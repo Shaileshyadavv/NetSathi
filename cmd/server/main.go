@@ -12,12 +12,15 @@ import (
 	"syscall"
 	"time"
 
+	"netsathi/internal/api"
 	"netsathi/internal/storage"
+	"netsathi/internal/transfer"
 )
 
 func main() {
 	port := flag.Int("port", 8080, "HTTP server listening port")
 	dataDir := flag.String("data", "./data", "Directory to store sqlite DB, chunks, and completed files")
+	webDir := flag.String("web", "./web", "Directory containing the static web dashboard files")
 	flag.Parse()
 
 	// Ensure required directories exist
@@ -38,7 +41,7 @@ func main() {
 	}
 	defer db.Close()
 
-	// Reconcile startup state (Module 3 & Section 11 of specification)
+	// Reconcile startup state (crash recovery)
 	reconciled, removed, err := db.ReconcileStartupState()
 	if err != nil {
 		log.Printf("[WARN] Startup reconciliation error: %v", err)
@@ -46,29 +49,31 @@ func main() {
 		log.Printf("[INFO] Startup reconciliation: %d valid chunks verified, %d orphaned chunk records cleaned up", reconciled, removed)
 	}
 
-	// Root multiplexer
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok","service":"NetSathi"}`))
-	})
+	// Initialize the transfer manager
+	mgr := transfer.NewManager(db, chunkDir, completedDir)
+
+	// Build the full HTTP router with all API endpoints and middleware
+	router := api.NewRouter(mgr, *webDir)
 
 	serverAddr := fmt.Sprintf(":%d", *port)
 	srv := &http.Server{
 		Addr:         serverAddr,
-		Handler:      mux,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
+		Handler:      router,
+		ReadTimeout:  5 * time.Minute, // Allow large chunk uploads
+		WriteTimeout: 5 * time.Minute,
 		IdleTimeout:  120 * time.Second,
 	}
 
 	// Start server in background goroutine
 	go func() {
 		log.Printf("==================================================")
-		log.Printf("  NetSathi File Transfer Server running on :%d", *port)
-		log.Printf("  Data directory: %s", *dataDir)
-		log.Printf("  Health check:   http://localhost:%d/healthz", *port)
+		log.Printf("  NetSathi File Transfer Server")
+		log.Printf("  Port:         %d", *port)
+		log.Printf("  Data dir:     %s", *dataDir)
+		log.Printf("  Web dir:      %s", *webDir)
+		log.Printf("  Health:       http://localhost:%d/healthz", *port)
+		log.Printf("  API Base:     http://localhost:%d/api/transfers", *port)
+		log.Printf("  Dashboard:    http://localhost:%d/", *port)
 		log.Printf("==================================================")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server failed: %v", err)
@@ -81,7 +86,7 @@ func main() {
 	<-quit
 	log.Println("[INFO] Shutting down NetSathi server gracefully...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)

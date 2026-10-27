@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetSathi — Resumable File Transfer</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <h1>🔗 NetSathi</h1>
+            <p class="subtitle">Resumable &amp; Integrity-Verified File Transfer</p>
+        </div>
+    </header>
+
+    <main>
+        <!-- Upload Section -->
+        <section class="card upload-section">
+            <h2>📤 Upload File</h2>
+
+            <div id="dropZone" class="drop-zone">
+                <div class="drop-zone-content">
+                    <span class="drop-icon">📁</span>
+                    <p>Drag &amp; drop a file here, or <label for="fileInput" class="file-label">browse</label></p>
+                    <input type="file" id="fileInput" hidden>
+                </div>
+            </div>
+
+            <!-- File Info (shown after selection) -->
+            <div id="fileInfo" class="file-info hidden">
+                <div class="file-details">
+                    <div class="detail-row">
+                        <span class="label">File:</span>
+                        <span id="fileName" class="value"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Size:</span>
+                        <span id="fileSize" class="value"></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">SHA-256:</span>
+                        <span id="fileHash" class="value hash-value">Computing...</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="label">Chunk Size:</span>
+                        <select id="chunkSizeSelect">
+                            <option value="1048576">1 MB</option>
+                            <option value="2097152" selected>2 MB</option>
+                            <option value="5242880">5 MB</option>
+                            <option value="10485760">10 MB</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <button id="uploadBtn" class="btn btn-primary" disabled>⬆ Upload</button>
+                    <button id="clearBtn" class="btn btn-secondary">✕ Clear</button>
+                </div>
+            </div>
+
+            <!-- Upload Progress (shown during upload) -->
+            <div id="uploadProgress" class="upload-progress hidden">
+                <div class="progress-header">
+                    <span id="progressFileName"></span>
+                    <span id="progressStatus" class="status-badge">Uploading</span>
+                </div>
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+                </div>
+                <div class="progress-details">
+                    <span id="progressPercent">0%</span>
+                    <span id="progressChunks">0 / 0 chunks</span>
+                </div>
+                <div class="progress-actions">
+                    <button id="pauseBtn" class="btn btn-warning">⏸ Pause</button>
+                    <button id="resumeBtn" class="btn btn-primary hidden">▶ Resume</button>
+                    <button id="cancelBtn" class="btn btn-danger">✕ Cancel</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transfer History Section -->
+        <section class="card history-section">
+            <div class="section-header">
+                <h2>📋 Transfer History</h2>
+                <button id="refreshBtn" class="btn btn-small btn-secondary">⟳ Refresh</button>
+            </div>
+            <div id="transferList" class="transfer-list">
+                <p class="empty-state">No transfers yet. Upload a file to get started!</p>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>NetSathi v1.0 — Capstone Project — Resumable &amp; Integrity-Verified File Transfer System</p>
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

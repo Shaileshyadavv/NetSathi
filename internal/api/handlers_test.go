@@ -351,3 +351,49 @@ func TestCompleteWithMissingChunks(t *testing.T) {
 		t.Errorf("expected 400 for missing chunks, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestChunkLevelChecksumValidation(t *testing.T) {
+	router := setupTestRouter(t)
+
+	chunkData := []byte("chunk with checksum")
+	hasher := sha256.New()
+	hasher.Write(chunkData)
+	validChunkHash := hex.EncodeToString(hasher.Sum(nil))
+
+	createBody, _ := json.Marshal(map[string]any{
+		"original_name":   "chunk_checksum.bin",
+		"total_size":      len(chunkData),
+		"chunk_size":      len(chunkData),
+		"expected_sha256": validChunkHash,
+	})
+	rr := doRequest(router, "POST", "/api/transfers", bytes.NewReader(createBody),
+		map[string]string{"Content-Type": "application/json"})
+
+	var createResp map[string]any
+	json.NewDecoder(rr.Body).Decode(&createResp)
+	transferID := createResp["id"].(string)
+	token := createResp["token"].(string)
+
+	// 1. Upload with INVALID chunk checksum -> should fail with 400
+	badHeaders := map[string]string{
+		"Authorization":  "Bearer " + token,
+		"X-Chunk-SHA256": "1111222233334444555566667777888899990000aaaabbbbccccddddeeeeffff",
+	}
+	rr = doRequest(router, "PUT", "/api/transfers/"+transferID+"/chunks/0",
+		bytes.NewReader(chunkData), badHeaders)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid chunk checksum, got %d", rr.Code)
+	}
+
+	// 2. Upload with VALID chunk checksum -> should succeed with 200
+	goodHeaders := map[string]string{
+		"Authorization":  "Bearer " + token,
+		"X-Chunk-SHA256": validChunkHash,
+	}
+	rr = doRequest(router, "PUT", "/api/transfers/"+transferID+"/chunks/0",
+		bytes.NewReader(chunkData), goodHeaders)
+	if rr.Code != http.StatusOK {
+		t.Errorf("expected 200 for valid chunk checksum, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+

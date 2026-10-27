@@ -31,6 +31,8 @@
     const progressStatus = document.getElementById('progressStatus');
     const progressBar = document.getElementById('progressBar');
     const progressPercent = document.getElementById('progressPercent');
+    const progressSpeed = document.getElementById('progressSpeed');
+    const progressEta = document.getElementById('progressEta');
     const progressChunks = document.getElementById('progressChunks');
     const pauseBtn = document.getElementById('pauseBtn');
     const resumeBtn = document.getElementById('resumeBtn');
@@ -238,6 +240,9 @@
         uploadedChunkCount = totalChunks - missingChunks.length;
         updateProgress(uploadedChunkCount, totalChunks);
 
+        const uploadStartTime = performance.now();
+        let bytesTransferredSession = 0;
+
         // Upload each missing chunk
         for (const chunkIndex of missingChunks) {
             // Check pause/cancel
@@ -259,12 +264,20 @@
             const end = Math.min(start + chunkSize, selectedFile.size);
             const blob = selectedFile.slice(start, end);
 
-            // Upload chunk
+            // Compute chunk-level SHA-256 (Page 3 optional extension)
+            const chunkBuffer = await blob.arrayBuffer();
+            const chunkHashBuffer = await crypto.subtle.digest('SHA-256', chunkBuffer);
+            const chunkHashHex = bufferToHex(chunkHashBuffer);
+
+            // Upload chunk with chunk checksum header
             try {
                 const uploadResp = await fetch(`${API_BASE}/${id}/chunks/${chunkIndex}`, {
                     method: 'PUT',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: blob
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'X-Chunk-SHA256': chunkHashHex
+                    },
+                    body: chunkBuffer
                 });
 
                 if (!uploadResp.ok) {
@@ -273,6 +286,20 @@
                 }
 
                 uploadedChunkCount++;
+                bytesTransferredSession += blob.size;
+
+                // Real-time speed & ETA metrics (Page 3 optional extension)
+                const elapsedSeconds = (performance.now() - uploadStartTime) / 1000;
+                if (elapsedSeconds > 0.05) {
+                    const speed = bytesTransferredSession / elapsedSeconds;
+                    progressSpeed.textContent = '⚡ ' + formatSpeed(speed);
+
+                    const remainingChunks = totalChunks - uploadedChunkCount;
+                    const remainingBytes = Math.min(remainingChunks * chunkSize, selectedFile.size - (uploadedChunkCount * chunkSize));
+                    const etaSeconds = speed > 0 ? Math.max(0, Math.round(remainingBytes / speed)) : 0;
+                    progressEta.textContent = '⏱ ETA: ' + formatDuration(etaSeconds);
+                }
+
                 updateProgress(uploadedChunkCount, totalChunks);
             } catch (err) {
                 // Network error — allow resume
@@ -286,6 +313,7 @@
         }
 
         // 3. All chunks uploaded — trigger completion
+        progressEta.textContent = '⏱ ETA: 0s';
         setProgressStatus('verifying', 'Verifying');
         try {
             const completeResp = await fetch(`${API_BASE}/${id}/complete`, {
@@ -300,6 +328,7 @@
 
             setProgressStatus('completed', 'Completed ✓');
             progressBar.classList.add('completed');
+            progressSpeed.textContent = '⚡ Done';
             pauseBtn.classList.add('hidden');
             resumeBtn.classList.add('hidden');
             cancelBtn.classList.add('hidden');
@@ -426,6 +455,21 @@
         const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    function formatSpeed(bytesPerSec) {
+        if (!bytesPerSec || bytesPerSec <= 0) return '0 KB/s';
+        if (bytesPerSec < 1024) return Math.round(bytesPerSec) + ' B/s';
+        if (bytesPerSec < 1024 * 1024) return (bytesPerSec / 1024).toFixed(1) + ' KB/s';
+        return (bytesPerSec / (1024 * 1024)).toFixed(2) + ' MB/s';
+    }
+
+    function formatDuration(totalSeconds) {
+        if (totalSeconds <= 0) return '0s';
+        if (totalSeconds < 60) return totalSeconds + 's';
+        const mins = Math.floor(totalSeconds / 60);
+        const secs = totalSeconds % 60;
+        return `${mins}m ${secs}s`;
     }
 
     function formatTimeAgo(date) {

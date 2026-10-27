@@ -1,12 +1,16 @@
 package transfer
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -123,7 +127,8 @@ func (m *Manager) CreateTransfer(req *CreateTransferRequest) (*CreateTransferRes
 
 // SaveChunk writes a chunk's data to disk and registers it in the database.
 // It is idempotent — re-uploading an existing chunk index replaces it.
-func (m *Manager) SaveChunk(transferID string, token string, chunkIndex int, data io.Reader) (int64, error) {
+// If expectedChecksum is provided (non-empty), it verifies chunk-level SHA-256 before committing.
+func (m *Manager) SaveChunk(transferID string, token string, chunkIndex int, expectedChecksum string, data io.Reader) (int64, error) {
 	// 1. Verify transfer exists and token matches
 	transfer, err := m.db.GetTransfer(transferID)
 	if err != nil {
@@ -157,13 +162,25 @@ func (m *Manager) SaveChunk(transferID string, token string, chunkIndex int, dat
 		return 0, fmt.Errorf("failed to create temp chunk file: %w", err)
 	}
 
-	written, err := io.Copy(tmpFile, data)
+	hasher := sha256.New()
+	writer := io.MultiWriter(tmpFile, hasher)
+
+	written, err := io.Copy(writer, data)
 	if err != nil {
 		tmpFile.Close()
 		os.Remove(tmpPath)
 		return 0, fmt.Errorf("failed to write chunk data: %w", err)
 	}
 	tmpFile.Close()
+
+	// Verify chunk-level checksum if provided (Page 3 optional extension)
+	if expectedChecksum != "" {
+		actualChunkHash := hex.EncodeToString(hasher.Sum(nil))
+		if !strings.EqualFold(actualChunkHash, strings.TrimSpace(expectedChecksum)) {
+			os.Remove(tmpPath)
+			return 0, fmt.Errorf("chunk %d checksum mismatch: expected %s, got %s", chunkIndex, expectedChecksum, actualChunkHash)
+		}
+	}
 
 	// Atomic rename from .tmp to final
 	if err := os.Rename(tmpPath, chunkPath); err != nil {
@@ -367,3 +384,41 @@ func (m *Manager) GetCompletedFilePath(transferID string) (string, string, error
 	}
 	return transfer.StoredPath, transfer.OriginalName, nil
 }
+
+// CleanupExpired purges incomplete/abandoned transfers older than maxAge (Page 3 optional extension).
+func (m *Manager) CleanupExpired(maxAge time.Duration) (int, error) {
+	cutoff := time.Now().UTC().Add(-maxAge)
+	expired, err := m.db.GetExpiredTransfers(cutoff)
+	if err != nil {
+		return 0, err
+	}
+
+	cleaned := 0
+	for _, t := range expired {
+		m.cleanupChunks(t.ID)
+		if err := m.db.DeleteTransfer(t.ID); err == nil {
+			cleaned++
+			log.Printf("[INFO] Cleaned up expired transfer: id=%s name=%s", t.ID, t.OriginalName)
+		}
+	}
+	return cleaned, nil
+}
+
+// StartCleanupWorker runs a periodic background worker that cleans up expired transfers.
+func (m *Manager) StartCleanupWorker(ctx context.Context, interval, maxAge time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if n, err := m.CleanupExpired(maxAge); err == nil && n > 0 {
+					log.Printf("[INFO] Background cleaner purged %d expired transfers", n)
+				}
+			}
+		}
+	}()
+}
+

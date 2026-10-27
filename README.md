@@ -25,8 +25,10 @@ Standard HTTP file uploads fail completely when interrupted by transient network
 
 **NetSathi** solves these challenges by providing:
 - **Chunk-Based Resumable Transfers:** Files are split into configurable chunks (1 MB–10 MB). Interrupted uploads resume by querying the server for missing chunks and transmitting *only* what was missed.
-- **End-to-End Cryptographic Integrity:** The client computes a SHA-256 hash prior to upload. Upon chunk assembly, the server independently streams and calculates the final SHA-256 hash, publishing the file only if the hashes match bit-for-bit.
+- **End-to-End & Chunk-Level Cryptographic Integrity:** Dual-layer hashing! Validates individual chunk hashes via `X-Chunk-SHA256` in real-time, plus whole-file SHA-256 verification upon final assembly.
 - **Server Restart & Crash Recovery:** SQLite with Write-Ahead Logging (WAL) stores transfer and chunk metadata. On startup, the server reconciles database state against actual disk files, recovering incomplete transfers seamlessly.
+- **Real-Time Throughput Metrics:** Live upload speed (KB/s, MB/s) and estimated time of arrival (ETA) computed directly in the browser dashboard.
+- **Automated Retention Worker:** Background cleaner automatically purges incomplete/abandoned transfers older than 24 hours.
 - **Defensive Engineering & Security:** Path traversal sanitization, high-entropy bearer tokens, unpredictable transfer UUIDs, and atomic temporary-file assembly.
 
 ---

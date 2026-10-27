@@ -321,3 +321,43 @@ func (d *DB) ReconcileStartupState() (reconciled int, removed int, err error) {
 
 	return reconciled, removed, nil
 }
+
+// GetExpiredTransfers finds transfers that have not been updated since cutoff and are not completed.
+func (d *DB) GetExpiredTransfers(cutoff time.Time) ([]Transfer, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	query := `
+	SELECT id, token, original_name, total_size, chunk_size, total_chunks,
+	       expected_sha256, actual_sha256, status, stored_path, created_at, updated_at
+	FROM transfers WHERE updated_at < ? AND status != 'Completed';
+	`
+	rows, err := d.db.Query(query, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []Transfer
+	for rows.Next() {
+		var t Transfer
+		if err := rows.Scan(
+			&t.ID, &t.Token, &t.OriginalName, &t.TotalSize, &t.ChunkSize, &t.TotalChunks,
+			&t.ExpectedSHA256, &t.ActualSHA256, &t.Status, &t.StoredPath, &t.CreatedAt, &t.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		list = append(list, t)
+	}
+	return list, rows.Err()
+}
+
+// DeleteTransfer deletes a transfer and cascades deletion to associated chunk records.
+func (d *DB) DeleteTransfer(id string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.Exec("DELETE FROM transfers WHERE id = ?", id)
+	return err
+}
+

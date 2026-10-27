@@ -221,9 +221,11 @@ func (h *Handler) handleUploadChunk(w http.ResponseWriter, r *http.Request, id, 
 		return
 	}
 
+	chunkChecksum := r.Header.Get("X-Chunk-SHA256")
+
 	// Limit chunk body to 11 MB (chunk_size max is 10 MB + overhead)
 	bodyReader := io.LimitReader(r.Body, 11*1024*1024)
-	written, err := h.mgr.SaveChunk(id, token, chunkIndex, bodyReader)
+	written, err := h.mgr.SaveChunk(id, token, chunkIndex, chunkChecksum, bodyReader)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "transfer not found")

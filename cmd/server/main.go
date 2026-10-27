@@ -52,6 +52,11 @@ func main() {
 	// Initialize the transfer manager
 	mgr := transfer.NewManager(db, chunkDir, completedDir)
 
+	// Start automatic cleanup worker (Page 3 optional extension: purges incomplete transfers older than 24h)
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+	mgr.StartCleanupWorker(cleanupCtx, 1*time.Hour, 24*time.Hour)
+
 	// Build the full HTTP router with all API endpoints and middleware
 	router := api.NewRouter(mgr, *webDir)
 

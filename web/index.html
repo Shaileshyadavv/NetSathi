@@ -3,100 +3,406 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NetSathi — Resumable File Transfer</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <title>NetSathi — Fast &amp; Resumable Local File Transfer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css?v=3.6">
 </head>
 <body>
-    <header>
-        <div class="header-content">
-            <h1>🔗 NetSathi</h1>
-            <p class="subtitle">Resumable &amp; Integrity-Verified File Transfer</p>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="brand-logo">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-name">NetSathi</span>
+                    <span class="brand-tag">v2.0 &bull; LAN</span>
+                </div>
+            </div>
+
+            <div class="nav-right">
+                <div id="serverStatus" class="status-pill status-online">
+                    <span class="status-dot"></span>
+                    <span id="serverStatusText">System Online</span>
+                </div>
+                <button id="lanShareBtn" class="btn btn-nav" title="Connect other devices on your Wi-Fi">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="5" y="2" width="14" height="20" rx="2" ry="2"/>
+                        <line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                    <span>Connect Phone / LAN</span>
+                </button>
+            </div>
         </div>
-    </header>
+    </nav>
 
-    <main>
-        <!-- Upload Section -->
-        <section class="card upload-section">
-            <h2>📤 Upload File</h2>
+    <!-- Main Container -->
+    <main class="main-wrapper">
+        <!-- Hero Header -->
+        <header class="hero-header">
+            <h1 class="hero-title">
+                Fast, Resumable &amp; Private <span class="gradient-text">File Sharing</span>
+            </h1>
+            <p class="hero-subtitle">
+                Transfer large files across your local network at maximum LAN speeds. Zero internet data consumed, complete crash recovery, and dual-layer SHA-256 cryptographic verification.
+            </p>
+        </header>
 
+        <!-- Feature Pillars / Stats Bar -->
+        <section class="feature-bar">
+            <div class="feature-item">
+                <div class="feature-icon feature-icon-emerald">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        <path d="M9 12l2 2 4-4"/>
+                    </svg>
+                </div>
+                <div class="feature-text">
+                    <span class="feature-title">Dual-Layer SHA-256</span>
+                    <span class="feature-desc">Bit-for-bit integrity proof</span>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon feature-icon-blue">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"/>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                    </svg>
+                </div>
+                <div class="feature-text">
+                    <span class="feature-title">Auto-Resume &amp; Recovery</span>
+                    <span class="feature-desc">SQLite WAL state synced</span>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon feature-icon-purple">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                        <line x1="6" y1="6" x2="6.01" y2="6"/>
+                        <line x1="6" y1="18" x2="6.01" y2="18"/>
+                    </svg>
+                </div>
+                <div class="feature-text">
+                    <span class="feature-title">Token-Bucket Shield</span>
+                    <span class="feature-desc">30 req/s rate limiter active</span>
+                </div>
+            </div>
+
+            <div class="feature-item">
+                <div class="feature-icon feature-icon-amber">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                        <line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                </div>
+                <div class="feature-text">
+                    <span class="feature-title" id="totalTransfersCount">0 Transfers</span>
+                    <span class="feature-desc">Logged on this server</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Upload Card (FileTransfer.io Style) -->
+        <section class="card upload-card">
+            <div class="card-top-header">
+                <div class="card-title-group">
+                    <span class="card-badge">Transfer Box</span>
+                    <h2 class="card-heading">Select or Drop Files</h2>
+                </div>
+                <span class="card-hint">Supports any file size &bull; Chunks up to 10 MB</span>
+            </div>
+
+            <!-- Drag & Drop Zone -->
             <div id="dropZone" class="drop-zone">
-                <div class="drop-zone-content">
-                    <span class="drop-icon">📁</span>
-                    <p>Drag &amp; drop a file here, or <label for="fileInput" class="file-label">browse</label></p>
+                <div class="drop-content">
+                    <div class="drop-circle">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </div>
+                    <h3 class="drop-heading">Drag and drop your file here</h3>
+                    <p class="drop-subtext">or choose a file from your computer</p>
+                    <label for="fileInput" class="btn btn-primary btn-select-file">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"/>
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        <span>Select File to Upload</span>
+                    </label>
                     <input type="file" id="fileInput" hidden>
                 </div>
             </div>
 
-            <!-- File Info (shown after selection) -->
-            <div id="fileInfo" class="file-info hidden">
-                <div class="file-details">
-                    <div class="detail-row">
-                        <span class="label">File:</span>
-                        <span id="fileName" class="value"></span>
+            <!-- Staged File Config Preview (Shown once file selected) -->
+            <div id="fileInfo" class="file-config-panel hidden">
+                <div class="selected-file-banner">
+                    <div id="fileTypeIcon" class="file-avatar">📄</div>
+                    <div class="selected-file-details">
+                        <div class="file-title-row">
+                            <h4 id="fileName" class="selected-file-name">document.pdf</h4>
+                            <span class="ready-pill">
+                                <span class="ready-dot"></span> Ready to send
+                            </span>
+                        </div>
+                        <div class="selected-file-meta">
+                            <span id="fileSize">0 MB</span> &bull; 
+                            <span id="fileTypeLabel">Binary</span>
+                        </div>
                     </div>
-                    <div class="detail-row">
-                        <span class="label">Size:</span>
-                        <span id="fileSize" class="value"></span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="label">SHA-256:</span>
-                        <span id="fileHash" class="value hash-value">Computing...</span>
-                    </div>
-                    <div class="detail-row">
-                        <span class="label">Chunk Size:</span>
-                        <select id="chunkSizeSelect">
-                            <option value="1048576">1 MB</option>
-                            <option value="2097152" selected>2 MB</option>
-                            <option value="5242880">5 MB</option>
-                            <option value="10485760">10 MB</option>
-                        </select>
-                    </div>
+                    <button id="clearBtn" class="btn btn-ghost btn-sm" title="Choose another file">✕ Change</button>
                 </div>
-                <div class="file-actions">
-                    <button id="uploadBtn" class="btn btn-primary" disabled>⬆ Upload</button>
-                    <button id="clearBtn" class="btn btn-secondary">✕ Clear</button>
+
+                <!-- Primary Action Button (Big, Prominent 1-Click Upload) -->
+                <div class="staged-actions">
+                    <button id="uploadBtn" class="btn btn-primary btn-lg btn-block" disabled>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span>Start Resumable Upload</span>
+                    </button>
                 </div>
+
+                <!-- Collapsible Advanced Engineering Options -->
+                <details class="advanced-settings-accordion">
+                    <summary class="advanced-settings-toggle">
+                        <span class="toggle-left">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"/>
+                                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                            </svg>
+                            Advanced Settings (Chunk Size, Concurrency, SHA-256)
+                        </span>
+                        <span class="accordion-arrow">▾</span>
+                    </summary>
+
+                    <div class="advanced-settings-content">
+                        <!-- SHA-256 Box -->
+                        <div class="hash-banner">
+                            <div class="hash-banner-head">
+                                <span class="hash-banner-title">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                    </svg>
+                                    Client-Side SHA-256 Fingerprint:
+                                </span>
+                                <span id="hashCalcStatus" class="badge-status badge-calculating">Computing...</span>
+                            </div>
+                            <div id="fileHash" class="hash-value-display mono">Calculating cryptographic hash...</div>
+                        </div>
+
+                        <!-- Transfer Settings -->
+                        <div class="config-grid">
+                            <div class="config-item">
+                                <label for="chunkSizeSelect">Chunk Block Size</label>
+                                <select id="chunkSizeSelect" class="form-select">
+                                    <option value="1048576">1 MB (Low Latency)</option>
+                                    <option value="2097152" selected>2 MB (Balanced - Recommended)</option>
+                                    <option value="5242880">5 MB (High Speed)</option>
+                                    <option value="10485760">10 MB (Large Files)</option>
+                                </select>
+                            </div>
+
+                            <div class="config-item">
+                                <label for="concurrencySelect">Parallel Upload Streams</label>
+                                <select id="concurrencySelect" class="form-select">
+                                    <option value="1">1 Stream (Sequential)</option>
+                                    <option value="2">2 Streams</option>
+                                    <option value="3" selected>3 Streams (Optimal Throughput)</option>
+                                    <option value="4">4 Streams (Fastest on LAN)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </details>
             </div>
 
-            <!-- Upload Progress (shown during upload) -->
-            <div id="uploadProgress" class="upload-progress hidden">
-                <div class="progress-header">
-                    <span id="progressFileName"></span>
-                    <span id="progressStatus" class="status-badge">Uploading</span>
+            <!-- Active Upload Progress Monitor -->
+            <div id="uploadProgress" class="progress-monitor-panel hidden">
+                <div class="monitor-header">
+                    <div class="monitor-file-info">
+                        <h4 id="progressFileName" class="monitor-title">filename.ext</h4>
+                        <div class="monitor-pills">
+                            <span id="progressSpeed" class="pill-metric">⚡ 0 KB/s</span>
+                            <span id="progressEta" class="pill-metric">⏱ ETA: --</span>
+                            <span id="progressChunks" class="pill-metric">0 / 0 chunks</span>
+                        </div>
+                    </div>
+                    <div id="progressStatus" class="status-badge-live badge-uploading">Uploading</div>
                 </div>
-                <div class="progress-bar-container">
-                    <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+
+                <!-- Main Progress Bar -->
+                <div class="progress-track">
+                    <div id="progressBar" class="progress-fill" style="width: 0%"></div>
                 </div>
-                <div class="progress-details">
-                    <span id="progressPercent">0%</span>
-                    <span id="progressSpeed">⚡ 0 KB/s</span>
-                    <span id="progressEta">⏱ ETA: --</span>
-                    <span id="progressChunks">0 / 0 chunks</span>
+
+                <div class="progress-bottom-info">
+                    <span id="progressPercent" class="progress-pct-text">0%</span>
+                    <span id="progressTransferredBytes" class="progress-bytes-text">0 B transferred</span>
                 </div>
-                <div class="progress-actions">
-                    <button id="pauseBtn" class="btn btn-warning">⏸ Pause</button>
-                    <button id="resumeBtn" class="btn btn-primary hidden">▶ Resume</button>
-                    <button id="cancelBtn" class="btn btn-danger">✕ Cancel</button>
+
+                <!-- Chunk Visualizer Matrix -->
+                <div class="matrix-card">
+                    <div class="matrix-header">
+                        <span class="matrix-title">Live Chunk Verification Matrix</span>
+                        <div class="matrix-legend">
+                            <span class="legend-chip"><span class="chip-color chip-verified"></span> Verified</span>
+                            <span class="legend-chip"><span class="chip-color chip-active"></span> Streaming</span>
+                            <span class="legend-chip"><span class="chip-color chip-queued"></span> Queued</span>
+                        </div>
+                    </div>
+                    <div id="chunkGrid" class="chunk-matrix-grid"></div>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="monitor-controls">
+                    <button id="pauseBtn" class="btn btn-warning">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <rect x="6" y="4" width="4" height="16"/>
+                            <rect x="14" y="4" width="4" height="16"/>
+                        </svg>
+                        <span>Pause Transfer</span>
+                    </button>
+                    <button id="resumeBtn" class="btn btn-primary hidden">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                        </svg>
+                        <span>Resume Transfer</span>
+                    </button>
+                    <button id="cancelBtn" class="btn btn-danger">
+                        ✕ Cancel
+                    </button>
                 </div>
             </div>
         </section>
 
-        <!-- Transfer History Section -->
+        <!-- Transfer History & Downloads Section -->
         <section class="card history-section">
-            <div class="section-header">
-                <h2>📋 Transfer History</h2>
-                <button id="refreshBtn" class="btn btn-small btn-secondary">⟳ Refresh</button>
+            <div class="history-header">
+                <div>
+                    <h2 class="history-title">Transfer History &amp; Downloads</h2>
+                    <p class="history-sub">Access verified files, direct download links, or share via QR code</p>
+                </div>
+
+                <div class="history-actions-bar">
+                    <div class="search-wrapper">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"/>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                        </svg>
+                        <input type="text" id="searchInput" placeholder="Search transfers..." class="search-field">
+                    </div>
+                    <button id="refreshBtn" class="btn btn-secondary btn-refresh" title="Reload transfers">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                        </svg>
+                        <span>Refresh</span>
+                    </button>
+                </div>
             </div>
-            <div id="transferList" class="transfer-list">
-                <p class="empty-state">No transfers yet. Upload a file to get started!</p>
+
+            <!-- Transfer List Container -->
+            <div id="transferList" class="transfer-cards-list">
+                <div class="empty-state">
+                    <div class="empty-icon-circle">📂</div>
+                    <h3>No transfers yet</h3>
+                    <p>Select or drop a file in the box above to start your first transfer.</p>
+                </div>
             </div>
         </section>
     </main>
 
-    <footer>
-        <p>NetSathi v1.0 — Capstone Project — Resumable &amp; Integrity-Verified File Transfer System</p>
+    <!-- Connect Phone / LAN Share Modal -->
+    <div id="lanModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-card-head">
+                <div class="modal-icon-title">
+                    <div class="modal-icon-badge">📱</div>
+                    <div>
+                        <h3>Connect Devices on Same Wi-Fi</h3>
+                        <p class="modal-subtitle">Direct peer access over your local network</p>
+                    </div>
+                </div>
+                <button id="closeLanModalBtn" class="modal-close-btn">&times;</button>
+            </div>
+
+            <div class="modal-card-body">
+                <div class="qr-presentation">
+                    <div id="lanQrCode" class="qr-box"></div>
+                    <p class="qr-helper-text">Point your phone camera at this QR code</p>
+                </div>
+
+                <div class="lan-address-section">
+                    <label class="input-label">Local Network Address:</label>
+                    <div class="input-copy-row">
+                        <input type="text" id="lanUrlInput" readonly class="input-text mono">
+                        <button id="copyLanUrlBtn" class="btn btn-primary btn-copy-action">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <p class="input-hint">Make sure both devices are connected to the same Wi-Fi router.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Direct File Download QR Share Modal -->
+    <div id="fileShareModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-card-head">
+                <div class="modal-icon-title">
+                    <div class="modal-icon-badge">⬇</div>
+                    <div>
+                        <h3 id="shareModalFileName">Download File</h3>
+                        <p class="modal-subtitle">Instant QR download for mobile</p>
+                    </div>
+                </div>
+                <button id="closeFileModalBtn" class="modal-close-btn">&times;</button>
+            </div>
+
+            <div class="modal-card-body">
+                <div class="qr-presentation">
+                    <div id="fileQrCode" class="qr-box"></div>
+                    <p class="qr-helper-text">Scan with any phone camera on your Wi-Fi to download</p>
+                </div>
+
+                <div class="lan-address-section">
+                    <label class="input-label">Direct Download Link:</label>
+                    <div class="input-copy-row">
+                        <input type="text" id="fileShareUrlInput" readonly class="input-text mono">
+                        <button id="copyFileShareUrlBtn" class="btn btn-primary btn-copy-action">
+                            📋 Copy
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Toast Notification System -->
+    <div id="toastContainer" class="toast-stack"></div>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <div class="footer-wrap">
+            <p><strong>NetSathi</strong> &bull; Resumable &amp; Integrity-Verified File Transfer Platform</p>
+            <p class="footer-sub">Pure Go Engine &bull; SQLite WAL Concurrency &bull; Web Crypto Streaming</p>
+        </div>
     </footer>
 
-    <script src="/js/app.js"></script>
+    <script src="/js/app.js?v=3.6"></script>
 </body>
 </html>

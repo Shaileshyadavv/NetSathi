@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"netsathi/internal/storage"
 	"netsathi/internal/transfer"
@@ -142,6 +143,10 @@ func (h *Handler) HandleTransfers(w http.ResponseWriter, r *http.Request) {
 	// PUT /api/transfers/{id}/chunks/{index}
 	case len(segments) == 3 && segments[1] == "chunks":
 		h.handleUploadChunk(w, r, segments[0], segments[2])
+
+	// GET /api/transfers/{id}/progress/stream
+	case len(segments) == 3 && segments[1] == "progress" && segments[2] == "stream":
+		h.handleProgressStream(w, r, segments[0])
 
 	default:
 		writeError(w, http.StatusNotFound, "endpoint not found")
@@ -302,4 +307,80 @@ func (h *Handler) handleDownloadFile(w http.ResponseWriter, r *http.Request, id 
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, originalName))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	http.ServeFile(w, r, filePath)
+}
+
+// GET /api/transfers/{id}/progress/stream — Server-Sent Events real-time progress feed.
+func (h *Handler) handleProgressStream(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	token := extractToken(r)
+	if token == "" {
+		writeError(w, http.StatusUnauthorized, "authorization token required")
+		return
+	}
+
+	// Verify the token without exposing internal DB
+	if err := h.mgr.VerifyToken(id, token); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "transfer not found")
+			return
+		}
+		if errors.Is(err, storage.ErrUnauthorized) {
+			writeError(w, http.StatusForbidden, "invalid token")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Ensure the ResponseWriter supports flushing (SSE requires it)
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		writeError(w, http.StatusInternalServerError, "streaming not supported by server")
+		return
+	}
+
+	// Set SSE-specific headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no") // Disable Nginx proxy buffering
+
+	ctx := r.Context()
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Client disconnected
+			return
+		case <-ticker.C:
+			progress, err := h.mgr.GetTransferProgress(id)
+			if err != nil {
+				fmt.Fprintf(w, "event: error\ndata: {\"error\":\"transfer not found\"}\n\n")
+				flusher.Flush()
+				return
+			}
+
+			data, _ := json.Marshal(progress)
+
+			switch progress.Transfer.Status {
+			case storage.StatusCompleted:
+				fmt.Fprintf(w, "event: completed\ndata: %s\n\n", data)
+				flusher.Flush()
+				return
+			case storage.StatusFailed:
+				fmt.Fprintf(w, "event: failed\ndata: %s\n\n", data)
+				flusher.Flush()
+				return
+			default:
+				fmt.Fprintf(w, "event: progress\ndata: %s\n\n", data)
+				flusher.Flush()
+			}
+		}
+	}
 }

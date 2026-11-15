@@ -385,6 +385,20 @@ func (m *Manager) GetCompletedFilePath(transferID string) (string, string, error
 	return transfer.StoredPath, transfer.OriginalName, nil
 }
 
+// VerifyToken checks that the given token belongs to the specified transfer.
+// Returns storage.ErrNotFound if the transfer doesn't exist, or storage.ErrUnauthorized if
+// the token doesn't match.
+func (m *Manager) VerifyToken(transferID, token string) error {
+	t, err := m.db.GetTransfer(transferID)
+	if err != nil {
+		return err
+	}
+	if t.Token != token {
+		return storage.ErrUnauthorized
+	}
+	return nil
+}
+
 // CleanupExpired purges incomplete/abandoned transfers older than maxAge (Page 3 optional extension).
 func (m *Manager) CleanupExpired(maxAge time.Duration) (int, error) {
 	cutoff := time.Now().UTC().Add(-maxAge)

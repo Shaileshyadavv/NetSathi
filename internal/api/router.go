@@ -1,10 +1,15 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
+	"netsathi/internal/network"
+	"netsathi/internal/ratelimit"
 	"netsathi/internal/transfer"
 )
 
@@ -46,21 +51,48 @@ func (sw *statusWriter) WriteHeader(code int) {
 	sw.ResponseWriter.WriteHeader(code)
 }
 
+// Flush implements http.Flusher to support streaming responses (SSE).
+func (sw *statusWriter) Flush() {
+	if flusher, ok := sw.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 // NewRouter creates and configures the full HTTP mux with all API routes and middleware.
-func NewRouter(mgr *transfer.Manager, webDir string) http.Handler {
+// limiter is optional; pass nil to disable rate limiting (e.g. in tests).
+func NewRouter(mgr *transfer.Manager, webDir string, limiter ...*ratelimit.IPRateLimiter) http.Handler {
 	handler := NewHandler(mgr)
 	mux := http.NewServeMux()
 
-	// Health check
+	// Health check and LAN network discovery — no rate limiting needed
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok","service":"NetSathi"}`))
+
+		lanIP := network.GetOutboundIP()
+		port := "8080"
+		if idx := strings.LastIndex(r.Host, ":"); idx != -1 {
+			port = r.Host[idx+1:]
+		}
+		lanURL := fmt.Sprintf("http://%s:%s", lanIP, port)
+
+		json.NewEncoder(w).Encode(map[string]string{
+			"status":  "ok",
+			"service": "NetSathi",
+			"lan_ip":  lanIP,
+			"lan_url": lanURL,
+		})
 	})
 
+	// Build the API handler, optionally wrapped in a rate limiter
+	var apiHandler http.Handler = http.HandlerFunc(handler.HandleTransfers)
+	if len(limiter) > 0 && limiter[0] != nil {
+		apiHandler = limiter[0].Middleware(apiHandler)
+	}
+
 	// API routes — single handler dispatches all /api/transfers/... paths
-	mux.HandleFunc("/api/transfers", handler.HandleTransfers)
-	mux.HandleFunc("/api/transfers/", handler.HandleTransfers)
+	mux.Handle("/api/transfers", apiHandler)
+	mux.Handle("/api/transfers/", apiHandler)
 
 	// Serve static web dashboard files
 	if webDir != "" {

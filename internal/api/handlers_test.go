@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,7 +11,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"netsathi/internal/storage"
 	"netsathi/internal/transfer"
@@ -396,4 +399,119 @@ func TestChunkLevelChecksumValidation(t *testing.T) {
 		t.Errorf("expected 200 for valid chunk checksum, got %d: %s", rr.Code, rr.Body.String())
 	}
 }
+
+func TestProgressStreamAuth(t *testing.T) {
+	router := setupTestRouter(t)
+
+	// Create transfer
+	createBody, _ := json.Marshal(map[string]any{
+		"original_name":   "sse_auth.bin",
+		"total_size":      100,
+		"chunk_size":      100,
+		"expected_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+	})
+	rr := doRequest(router, "POST", "/api/transfers", bytes.NewReader(createBody),
+		map[string]string{"Content-Type": "application/json"})
+	var createResp map[string]any
+	json.NewDecoder(rr.Body).Decode(&createResp)
+	transferID := createResp["id"].(string)
+	token := createResp["token"].(string)
+
+	// 1. Missing token -> 401
+	rr = doRequest(router, "GET", "/api/transfers/"+transferID+"/progress/stream", nil, nil)
+	if rr.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 for stream without token, got %d", rr.Code)
+	}
+
+	// 2. Wrong token -> 403
+	rr = doRequest(router, "GET", "/api/transfers/"+transferID+"/progress/stream", nil,
+		map[string]string{"Authorization": "Bearer badtoken"})
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403 for stream with wrong token, got %d", rr.Code)
+	}
+
+	// 3. Nonexistent transfer -> 404
+	rr = doRequest(router, "GET", "/api/transfers/nonexistent-id/progress/stream", nil,
+		map[string]string{"Authorization": "Bearer " + token})
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for nonexistent transfer, got %d", rr.Code)
+	}
+}
+
+func TestProgressStreamEvents(t *testing.T) {
+	router := setupTestRouter(t)
+
+	chunk := bytes.Repeat([]byte("S"), 256)
+	hasher := sha256.New()
+	hasher.Write(chunk)
+	validHash := hex.EncodeToString(hasher.Sum(nil))
+
+	createBody, _ := json.Marshal(map[string]any{
+		"original_name":   "sse_stream.bin",
+		"total_size":      256,
+		"chunk_size":      256,
+		"expected_sha256": validHash,
+	})
+	rr := doRequest(router, "POST", "/api/transfers", bytes.NewReader(createBody),
+		map[string]string{"Content-Type": "application/json"})
+	var createResp map[string]any
+	json.NewDecoder(rr.Body).Decode(&createResp)
+	transferID := createResp["id"].(string)
+	token := createResp["token"].(string)
+	authHeader := map[string]string{"Authorization": "Bearer " + token}
+
+	// Upload chunk and complete transfer
+	doRequest(router, "PUT", "/api/transfers/"+transferID+"/chunks/0", bytes.NewReader(chunk), authHeader)
+	doRequest(router, "POST", "/api/transfers/"+transferID+"/complete", nil, authHeader)
+
+	// Now connect to stream — since status is Completed, it should emit 'completed' event and exit immediately
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req := httptest.NewRequest("GET", "/api/transfers/"+transferID+"/progress/stream?token="+token, nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for SSE stream, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("expected text/event-stream, got %s", ct)
+	}
+	bodyStr := rec.Body.String()
+	if !strings.Contains(bodyStr, "event: completed") {
+		t.Errorf("expected 'event: completed' in SSE stream output, got: %s", bodyStr)
+	}
+}
+
+func TestHealthzDiscovery(t *testing.T) {
+	router := setupTestRouter(t)
+
+	req := httptest.NewRequest("GET", "/healthz", nil)
+	req.Host = "192.168.1.100:8080"
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+
+	var resp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if resp["status"] != "ok" {
+		t.Errorf("expected status ok, got %s", resp["status"])
+	}
+	if resp["lan_ip"] == "" {
+		t.Errorf("expected non-empty lan_ip")
+	}
+	if !strings.HasPrefix(resp["lan_url"], "http://") {
+		t.Errorf("expected lan_url to start with http://, got %s", resp["lan_url"])
+	}
+}
+
 

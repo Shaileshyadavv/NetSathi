@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"netsathi/internal/api"
+	"netsathi/internal/network"
+	"netsathi/internal/ratelimit"
 	"netsathi/internal/storage"
 	"netsathi/internal/transfer"
 )
@@ -58,7 +60,9 @@ func main() {
 	mgr.StartCleanupWorker(cleanupCtx, 1*time.Hour, 24*time.Hour)
 
 	// Build the full HTTP router with all API endpoints and middleware
-	router := api.NewRouter(mgr, *webDir)
+	// Initialize per-IP rate limiter: 30 requests/sec per IP, burst of 60
+	limiter := ratelimit.New(30, 60)
+	router := api.NewRouter(mgr, *webDir, limiter)
 
 	serverAddr := fmt.Sprintf(":%d", *port)
 	srv := &http.Server{
@@ -70,15 +74,17 @@ func main() {
 	}
 
 	// Start server in background goroutine
+	lanIP := network.GetOutboundIP()
 	go func() {
 		log.Printf("==================================================")
 		log.Printf("  NetSathi File Transfer Server")
 		log.Printf("  Port:         %d", *port)
 		log.Printf("  Data dir:     %s", *dataDir)
 		log.Printf("  Web dir:      %s", *webDir)
+		log.Printf("  Local:        http://localhost:%d/", *port)
+		log.Printf("  LAN Access:   http://%s:%d/", lanIP, *port)
 		log.Printf("  Health:       http://localhost:%d/healthz", *port)
 		log.Printf("  API Base:     http://localhost:%d/api/transfers", *port)
-		log.Printf("  Dashboard:    http://localhost:%d/", *port)
 		log.Printf("==================================================")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server failed: %v", err)

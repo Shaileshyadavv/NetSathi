@@ -459,6 +459,109 @@ body {
     margin-top: 0.2rem;
 }
 
+/* ===== BATCH UPLOAD STAGING PANEL ===== */
+.batch-preview-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.15rem 1.25rem;
+    margin-bottom: 1.25rem;
+}
+
+.batch-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.batch-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+}
+
+.batch-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+}
+
+.batch-items-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 220px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.batch-item-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 0.55rem 0.85rem;
+    font-size: 0.86rem;
+    transition: border-color 0.2s;
+}
+
+.batch-item-row:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.batch-item-left {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.batch-item-name {
+    color: var(--text-main);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.batch-item-size {
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    flex-shrink: 0;
+}
+
+.batch-item-remove {
+    background: none;
+    border: none;
+    color: var(--text-faint);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 0.35rem;
+    transition: color 0.2s;
+}
+
+.batch-item-remove:hover {
+    color: #ef4444;
+}
+
+/* Download ZIP All Action */
+.btn-zip-action {
+    background: rgba(37, 99, 235, 0.15);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.btn-zip-action:hover {
+    background: rgba(37, 99, 235, 0.28);
+    border-color: rgba(59, 130, 246, 0.5);
+    color: #93c5fd;
+}
+
 .hash-banner {
     background: var(--bg-input);
     border: 1px solid var(--border);
@@ -1227,6 +1330,114 @@ details[open] .accordion-arrow {
 .footer-sub {
     margin-top: 0.3rem;
     font-size: 0.75rem;
+}
+
+/* ===== FILE PREVIEW MODAL ===== */
+.modal-card-preview {
+    max-width: 900px;
+    width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.preview-head-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.preview-body {
+    flex: 1;
+    overflow: auto;
+    min-height: 200px;
+    max-height: 70vh;
+    padding: 0 !important;
+}
+
+.preview-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.preview-container img {
+    max-width: 100%;
+    max-height: 65vh;
+    border-radius: var(--radius-md);
+    object-fit: contain;
+}
+
+.preview-container video,
+.preview-container audio {
+    max-width: 100%;
+    max-height: 65vh;
+    border-radius: var(--radius-md);
+}
+
+.preview-container iframe {
+    width: 100%;
+    height: 65vh;
+    border: none;
+    border-radius: var(--radius-md);
+    background: #fff;
+}
+
+.preview-container pre {
+    width: 100%;
+    max-height: 65vh;
+    overflow: auto;
+    background: var(--bg-input);
+    color: #38bdf8;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 1.25rem;
+    font-family: 'JetBrains Mono', 'Consolas', monospace;
+    font-size: 0.84rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.preview-placeholder {
+    color: var(--text-faint);
+    font-size: 0.95rem;
+}
+
+.preview-unsupported {
+    text-align: center;
+    padding: 2rem;
+}
+
+.preview-unsupported .preview-icon {
+    font-size: 3.5rem;
+    margin-bottom: 1rem;
+}
+
+.preview-unsupported h4 {
+    font-size: 1.1rem;
+    margin-bottom: 0.4rem;
+    color: var(--text-main);
+}
+
+.preview-unsupported p {
+    color: var(--text-muted);
+    font-size: 0.88rem;
+}
+
+/* Preview button in transfer cards */
+.btn-preview-action {
+    background: rgba(168, 85, 247, 0.12);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.btn-preview-action:hover {
+    background: rgba(168, 85, 247, 0.25);
+    border-color: rgba(168, 85, 247, 0.5);
 }
 
 /* ===== UTILITIES ===== */

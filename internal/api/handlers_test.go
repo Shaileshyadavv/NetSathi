@@ -1,6 +1,7 @@
 package api
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -511,6 +512,144 @@ func TestHealthzDiscovery(t *testing.T) {
 	}
 	if !strings.HasPrefix(resp["lan_url"], "http://") {
 		t.Errorf("expected lan_url to start with http://, got %s", resp["lan_url"])
+	}
+}
+
+func TestPreviewEndpoint(t *testing.T) {
+	router := setupTestRouter(t)
+
+	// Step 1: 404 for non-existent transfer
+	rr := doRequest(router, "GET", "/api/transfers/non-existent-uuid/preview", nil, nil)
+	if rr.Code != http.StatusNotFound {
+		t.Errorf("expected 404 for non-existent transfer, got %d", rr.Code)
+	}
+
+	// Step 2: Upload a real text file and complete it
+	content := []byte("Hello, NetSathi in-browser preview!")
+	hasher := sha256.New()
+	hasher.Write(content)
+	expectedHash := hex.EncodeToString(hasher.Sum(nil))
+
+	createBody, _ := json.Marshal(map[string]any{
+		"original_name":   "sample.txt",
+		"total_size":      len(content),
+		"chunk_size":      len(content),
+		"expected_sha256": expectedHash,
+	})
+
+	rr = doRequest(router, "POST", "/api/transfers", bytes.NewReader(createBody),
+		map[string]string{"Content-Type": "application/json"})
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", rr.Code)
+	}
+
+	var createResp map[string]any
+	json.NewDecoder(rr.Body).Decode(&createResp)
+	transferID := createResp["id"].(string)
+	token := createResp["token"].(string)
+
+	// Step 3: Before completion, preview should fail with 400
+	rr = doRequest(router, "GET", "/api/transfers/"+transferID+"/preview", nil, nil)
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for incomplete transfer preview, got %d", rr.Code)
+	}
+
+	// Step 4: Upload chunk 0
+	authHeader := map[string]string{"Authorization": "Bearer " + token}
+	rr = doRequest(router, "PUT", "/api/transfers/"+transferID+"/chunks/0", bytes.NewReader(content), authHeader)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	// Step 5: Complete transfer
+	rr = doRequest(router, "POST", "/api/transfers/"+transferID+"/complete", nil, authHeader)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 on complete, got %d", rr.Code)
+	}
+
+	// Step 6: Preview completed file
+	rr = doRequest(router, "GET", "/api/transfers/"+transferID+"/preview", nil, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for preview, got %d", rr.Code)
+	}
+
+	if ct := rr.Header().Get("Content-Type"); !strings.Contains(ct, "text/plain") {
+		t.Errorf("expected text/plain content-type, got %s", ct)
+	}
+	if cd := rr.Header().Get("Content-Disposition"); !strings.Contains(cd, "inline") {
+		t.Errorf("expected inline content-disposition, got %s", cd)
+	}
+	if rr.Body.String() != string(content) {
+		t.Errorf("expected body '%s', got '%s'", content, rr.Body.String())
+	}
+}
+
+func TestBatchZipEndpoint(t *testing.T) {
+	router := setupTestRouter(t)
+
+	// Step 1: Upload file 1
+	c1 := []byte("Content of file 1")
+	h1 := sha256.Sum256(c1)
+	b1, _ := json.Marshal(map[string]any{
+		"original_name":   "file1.txt",
+		"total_size":      len(c1),
+		"chunk_size":      len(c1),
+		"expected_sha256": hex.EncodeToString(h1[:]),
+	})
+	rr := doRequest(router, "POST", "/api/transfers", bytes.NewReader(b1), map[string]string{"Content-Type": "application/json"})
+	var r1 map[string]any
+	json.NewDecoder(rr.Body).Decode(&r1)
+	id1 := r1["id"].(string)
+	tok1 := r1["token"].(string)
+
+	doRequest(router, "PUT", "/api/transfers/"+id1+"/chunks/0", bytes.NewReader(c1), map[string]string{"Authorization": "Bearer " + tok1})
+	doRequest(router, "POST", "/api/transfers/"+id1+"/complete", nil, map[string]string{"Authorization": "Bearer " + tok1})
+
+	// Step 2: Upload file 2
+	c2 := []byte("Content of file 2")
+	h2 := sha256.Sum256(c2)
+	b2, _ := json.Marshal(map[string]any{
+		"original_name":   "file2.txt",
+		"total_size":      len(c2),
+		"chunk_size":      len(c2),
+		"expected_sha256": hex.EncodeToString(h2[:]),
+	})
+	rr = doRequest(router, "POST", "/api/transfers", bytes.NewReader(b2), map[string]string{"Content-Type": "application/json"})
+	var r2 map[string]any
+	json.NewDecoder(rr.Body).Decode(&r2)
+	id2 := r2["id"].(string)
+	tok2 := r2["token"].(string)
+
+	doRequest(router, "PUT", "/api/transfers/"+id2+"/chunks/0", bytes.NewReader(c2), map[string]string{"Authorization": "Bearer " + tok2})
+	doRequest(router, "POST", "/api/transfers/"+id2+"/complete", nil, map[string]string{"Authorization": "Bearer " + tok2})
+
+	// Step 3: Request batch zip
+	rr = doRequest(router, "GET", "/api/transfers/batch/zip?ids="+id1+","+id2, nil, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for batch zip, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	if ct := rr.Header().Get("Content-Type"); ct != "application/zip" {
+		t.Errorf("expected application/zip, got %s", ct)
+	}
+
+	// Verify the zip contains both files
+	zipReader, err := zip.NewReader(bytes.NewReader(rr.Body.Bytes()), int64(rr.Body.Len()))
+	if err != nil {
+		t.Fatalf("failed to parse zip: %v", err)
+	}
+
+	if len(zipReader.File) != 2 {
+		t.Fatalf("expected 2 files in zip, found %d", len(zipReader.File))
+	}
+
+	foundNames := map[string]bool{}
+	for _, f := range zipReader.File {
+		foundNames[f.Name] = true
+	}
+
+	if !foundNames["file1.txt"] || !foundNames["file2.txt"] {
+		t.Errorf("expected file1.txt and file2.txt in zip, got %+v", foundNames)
 	}
 }
 

@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/style.css?v=3.6">
+    <link rel="stylesheet" href="/css/style.css?v=4.5">
 </head>
 <body>
     <!-- Top Navigation Bar -->
@@ -138,15 +138,16 @@
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
                         </svg>
-                        <span>Select File to Upload</span>
+                        <span>Select Files to Upload</span>
                     </label>
-                    <input type="file" id="fileInput" hidden>
+                    <input type="file" id="fileInput" hidden multiple>
                 </div>
             </div>
 
-            <!-- Staged File Config Preview (Shown once file selected) -->
+            <!-- Staged File Config Preview (Shown once file(s) selected) -->
             <div id="fileInfo" class="file-config-panel hidden">
-                <div class="selected-file-banner">
+                <!-- Single File Preview -->
+                <div id="singleFileBanner" class="selected-file-banner">
                     <div id="fileTypeIcon" class="file-avatar">📄</div>
                     <div class="selected-file-details">
                         <div class="file-title-row">
@@ -160,7 +161,19 @@
                             <span id="fileTypeLabel">Binary</span>
                         </div>
                     </div>
-                    <button id="clearBtn" class="btn btn-ghost btn-sm" title="Choose another file">✕ Change</button>
+                    <button id="clearBtn" class="btn btn-ghost btn-sm" title="Choose other files">✕ Clear</button>
+                </div>
+
+                <!-- Batch Files Preview (Shown when 2+ files selected) -->
+                <div id="batchFileBanner" class="batch-preview-panel hidden">
+                    <div class="batch-header-row">
+                        <div>
+                            <h4 id="batchTitle" class="batch-title">📦 Batch Upload (3 files)</h4>
+                            <span id="batchTotalSize" class="batch-subtitle">Total: 4.8 MB</span>
+                        </div>
+                        <button id="batchClearBtn" class="btn btn-ghost btn-sm" title="Clear batch">✕ Clear All</button>
+                    </div>
+                    <div id="batchList" class="batch-items-container"></div>
                 </div>
 
                 <!-- Primary Action Button (Big, Prominent 1-Click Upload) -->
@@ -304,6 +317,14 @@
                         </svg>
                         <input type="text" id="searchInput" placeholder="Search transfers..." class="search-field">
                     </div>
+                    <button id="downloadZipBtn" class="btn btn-secondary btn-zip-action" title="Download all completed files in a single ZIP package">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                            <line x1="12" y1="22.08" x2="12" y2="12"/>
+                        </svg>
+                        <span>📦 Download All (.ZIP)</span>
+                    </button>
                     <button id="refreshBtn" class="btn btn-secondary btn-refresh" title="Reload transfers">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="23 4 23 10 17 10"/>
@@ -392,6 +413,31 @@
         </div>
     </div>
 
+    <!-- File Preview Modal -->
+    <div id="previewModal" class="modal-backdrop hidden">
+        <div class="modal-card modal-card-preview">
+            <div class="modal-card-head">
+                <div class="modal-icon-title">
+                    <div class="modal-icon-badge">👁️</div>
+                    <div>
+                        <h3 id="previewModalFileName">File Preview</h3>
+                        <p class="modal-subtitle" id="previewModalMeta"></p>
+                    </div>
+                </div>
+                <div class="preview-head-actions">
+                    <a id="previewDownloadBtn" href="#" class="btn btn-sm btn-primary" download>⬇ Download</a>
+                    <button id="closePreviewModalBtn" class="modal-close-btn">&times;</button>
+                </div>
+            </div>
+
+            <div class="modal-card-body preview-body">
+                <div id="previewContent" class="preview-container">
+                    <p class="preview-placeholder">Loading preview...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Floating Toast Notification System -->
     <div id="toastContainer" class="toast-stack"></div>
 
@@ -403,6 +449,6 @@
         </div>
     </footer>
 
-    <script src="/js/app.js?v=3.6"></script>
+    <script src="/js/app.js?v=4.5"></script>
 </body>
 </html>

@@ -9,13 +9,14 @@
 1. [Overview & Problem Statement](#overview--problem-statement)
 2. [Key Capabilities & Architecture](#key-capabilities--architecture)
 3. [Technology Stack](#technology-stack)
-4. [Project Structure](#project-structure)
-5. [Prerequisites & Getting Started](#prerequisites--getting-started)
-6. [Interactive Web Dashboard](#interactive-web-dashboard)
-7. [REST API Documentation](#rest-api-documentation)
-8. [Testing & Evaluation](#testing--evaluation)
-9. [Docker Deployment](#docker-deployment)
-10. [Viva & Technical Interview Guide](#viva--technical-interview-guide)
+4. [Prerequisites & Getting Started](#prerequisites--getting-started)
+5. [Interactive Web Dashboard](#interactive-web-dashboard)
+6. [Dedicated CLI Client (`netsathi-cli`)](#dedicated-cli-client-netsathi-cli)
+7. [Two-Device LAN Demonstration](#two-device-lan-demonstration)
+8. [REST API Documentation](#rest-api-documentation)
+9. [Testing & Evaluation](#testing--evaluation)
+10. [Docker Deployment](#docker-deployment)
+11. [Viva & Technical Interview Guide](#viva--technical-interview-guide)
 
 ---
 
@@ -123,11 +124,91 @@ Standard HTTP file uploads fail completely when interrupted by transient network
 ## 🖥️ Interactive Web Dashboard
 
 NetSathi includes a self-hosted single-page dashboard served directly by the Go application:
-- **Drag-and-Drop or File Picker:** Select any local file.
-- **Client-Side SHA-256 Hashing:** Automatically computes the file hash in the browser before upload begins.
+- **Drag-and-Drop or File Picker:** Select any local file of any size.
+- **Client-Side SHA-256 Hashing:** Automatically computes the file fingerprint in the browser before upload begins.
 - **Configurable Chunk Sizes:** Select 1 MB, 2 MB, 5 MB, or 10 MB chunks.
+- **Parallel Chunk Streams:** Select 1x, 2x, 3x, or 4x concurrent worker streams to saturate LAN throughput.
 - **Pause & Resume Controls:** Click **Pause** at any time to simulate a network interruption, then click **Resume** to continue uploading without repeating already-saved chunks.
 - **Transfer History & Direct Download:** View all recent transfers, verification statuses, and download finished files with one click.
+- **Mobile QR Code Pairing:** Click **Connect Phone / LAN** or click **📱 QR Code** on any file card to download directly to your mobile phone over Wi-Fi.
+
+---
+
+## 💻 Dedicated CLI Client (`netsathi-cli`)
+
+NetSathi includes a dedicated Go command-line tool for headless environments, server-to-server transfers, and automated shell scripting.
+
+### Build the CLI
+```bash
+go build -o netsathi-cli ./cmd/cli
+```
+
+### CLI Commands
+
+#### 1. Upload a File
+Uploads with auto-chunking, local SHA-256 computation, parallel worker pool, and live ASCII progress bar:
+```bash
+./netsathi-cli upload ./my_video.mp4 -server http://localhost:8080 -chunk-size 2097152 -concurrency 3
+```
+*Output:*
+```text
+📦 File:        my_video.mp4
+📊 Size:        48.5 MB (50855936 bytes)
+⚙️  Chunk size:  2.0 MB
+⚡ Streams:     3 parallel
+⏳ Computing SHA-256... Done (120ms)
+🔒 SHA-256:     9def596eb29641de886c6361363eae31...
+
+[█████████████████████████] 100%  (25/25 chunks)  ⚡ 14.8 MB/s
+🎉 TRANSFER COMPLETED AND VERIFIED!
+```
+
+#### 2. Automatic Resume
+If an upload gets interrupted (Ctrl+C, Wi-Fi disconnect), simply rerun the same command:
+```bash
+./netsathi-cli upload ./my_video.mp4
+# Output:
+# ℹ️ Resuming upload: 14/25 chunks already on server
+# [█████████████████████████] 100% (25/25 chunks)
+```
+
+#### 3. List Transfers
+```bash
+./netsathi-cli list -limit 10
+```
+
+#### 4. Check Transfer Status
+```bash
+./netsathi-cli status <transfer-id>
+```
+
+#### 5. Download Completed File
+```bash
+./netsathi-cli download <transfer-id> -output ./downloaded_file.mp4
+```
+
+---
+
+## 📱 Two-Device LAN Demonstration
+
+To demonstrate NetSathi between two devices on the same Wi-Fi / local network (e.g. laptop $\leftrightarrow$ phone, or two computers):
+
+1. **Start the server on Host 1:**
+   ```bash
+   go run ./cmd/server
+   ```
+   The startup console will automatically display the local LAN access link:
+   ```text
+   Local:        http://localhost:8080/
+   LAN Access:   http://192.168.1.45:8080/
+   ```
+
+2. **Open the browser on Device 2 (or Scan QR Code):**
+   - Connect Device 2 to the same Wi-Fi network.
+   - Click **Connect Phone / LAN** on the dashboard and scan the QR code with Device 2's camera.
+   - Or navigate directly to `http://<Host-1-IP>:8080`.
+   - Select a file, choose a chunk size, and hit **Upload**.
+   - Observe live SSE streaming progress, pause the transfer, resume, and verify bit-for-bit completion.
 
 ---
 

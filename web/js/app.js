@@ -19,11 +19,18 @@
     let allTransfersCache = [];
     let progressEventSource = null;
     let serverLanUrl = '';
+    let selectedFiles = []; // Array of File objects for batch upload
 
     // --- DOM Elements ---
     const dropZone = document.getElementById('dropZone');
     const fileInput = document.getElementById('fileInput');
     const fileInfo = document.getElementById('fileInfo');
+    const singleFileBanner = document.getElementById('singleFileBanner');
+    const batchFileBanner = document.getElementById('batchFileBanner');
+    const batchTitle = document.getElementById('batchTitle');
+    const batchTotalSize = document.getElementById('batchTotalSize');
+    const batchList = document.getElementById('batchList');
+    const batchClearBtn = document.getElementById('batchClearBtn');
     const fileName = document.getElementById('fileName');
     const fileSize = document.getElementById('fileSize');
     const fileTypeIcon = document.getElementById('fileTypeIcon');
@@ -34,6 +41,7 @@
     const concurrencySelect = document.getElementById('concurrencySelect');
     const uploadBtn = document.getElementById('uploadBtn');
     const clearBtn = document.getElementById('clearBtn');
+    const downloadZipBtn = document.getElementById('downloadZipBtn');
 
     // Progress Panel Elements
     const uploadProgress = document.getElementById('uploadProgress');
@@ -70,6 +78,14 @@
     const fileQrCode = document.getElementById('fileQrCode');
     const fileShareUrlInput = document.getElementById('fileShareUrlInput');
     const copyFileShareUrlBtn = document.getElementById('copyFileShareUrlBtn');
+
+    // Preview Modal Elements
+    const previewModal = document.getElementById('previewModal');
+    const closePreviewModalBtn = document.getElementById('closePreviewModalBtn');
+    const previewModalFileName = document.getElementById('previewModalFileName');
+    const previewModalMeta = document.getElementById('previewModalMeta');
+    const previewContent = document.getElementById('previewContent');
+    const previewDownloadBtn = document.getElementById('previewDownloadBtn');
 
     const serverStatus = document.getElementById('serverStatus');
     const serverStatusText = document.getElementById('serverStatusText');
@@ -145,20 +161,94 @@
         e.preventDefault();
         dropZone.classList.remove('drag-over');
         if (e.dataTransfer.files.length > 0) {
-            handleFileSelect(e.dataTransfer.files[0]);
+            handleFilesSelection(Array.from(e.dataTransfer.files));
         }
     });
 
     dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', () => {
         if (fileInput.files.length > 0) {
-            handleFileSelect(fileInput.files[0]);
+            handleFilesSelection(Array.from(fileInput.files));
         }
     });
 
     clearBtn.addEventListener('click', resetUploadUI);
+    if (batchClearBtn) {
+        batchClearBtn.addEventListener('click', resetUploadUI);
+    }
 
-    async function handleFileSelect(file) {
+    function handleFilesSelection(files) {
+        if (!files || files.length === 0) return;
+        selectedFiles = files;
+
+        if (files.length === 1) {
+            // Single file mode
+            if (singleFileBanner) singleFileBanner.classList.remove('hidden');
+            if (batchFileBanner) batchFileBanner.classList.add('hidden');
+            uploadBtn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span>Start Resumable Upload</span>
+            `;
+            handleSingleFileSetup(files[0]);
+        } else {
+            // Multi-file batch mode
+            if (singleFileBanner) singleFileBanner.classList.add('hidden');
+            if (batchFileBanner) batchFileBanner.classList.remove('hidden');
+            renderBatchStagedList();
+            fileInfo.classList.remove('hidden');
+            dropZone.classList.add('hidden');
+            uploadBtn.disabled = false;
+            uploadBtn.innerHTML = `
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span>Upload Batch (${selectedFiles.length} Files)</span>
+            `;
+            showToast(`${selectedFiles.length} files selected for batch upload`, 'info');
+        }
+    }
+
+    function renderBatchStagedList() {
+        if (!batchList) return;
+        const totalBytes = selectedFiles.reduce((acc, f) => acc + f.size, 0);
+        if (batchTitle) batchTitle.textContent = `📦 Batch Upload (${selectedFiles.length} files)`;
+        if (batchTotalSize) batchTotalSize.textContent = `Total: ${formatBytes(totalBytes)}`;
+
+        batchList.innerHTML = selectedFiles.map((f, idx) => {
+            const meta = getFileMeta(f.name);
+            return `
+                <div class="batch-item-row">
+                    <div class="batch-item-left">
+                        <span>${meta.icon}</span>
+                        <span class="batch-item-name" title="${escapeHtml(f.name)}">${escapeHtml(f.name)}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.65rem;">
+                        <span class="batch-item-size">${formatBytes(f.size)}</span>
+                        <button type="button" class="batch-item-remove" onclick="removeBatchFile(${idx})" title="Remove file">✕</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    window.removeBatchFile = function(index) {
+        selectedFiles.splice(index, 1);
+        if (selectedFiles.length === 0) {
+            resetUploadUI();
+        } else if (selectedFiles.length === 1) {
+            handleFilesSelection(selectedFiles);
+        } else {
+            renderBatchStagedList();
+            const btnSpan = uploadBtn.querySelector('span');
+            if (btnSpan) btnSpan.textContent = `Upload Batch (${selectedFiles.length} Files)`;
+        }
+    };
+
+    async function handleSingleFileSetup(file) {
         selectedFile = file;
         fileHash = '';
         uploadBtn.disabled = true;
@@ -196,6 +286,7 @@
 
     function resetUploadUI() {
         selectedFile = null;
+        selectedFiles = [];
         fileHash = '';
         currentTransfer = null;
         isPaused = false;
@@ -295,6 +386,11 @@
     cancelBtn.addEventListener('click', cancelUpload);
 
     async function startUpload() {
+        if (selectedFiles.length > 1) {
+            await startBatchUpload();
+            return;
+        }
+
         if (!selectedFile || !fileHash) return;
 
         const chunkSize = parseInt(chunkSizeSelect.value, 10);
@@ -343,6 +439,73 @@
             progressBar.classList.add('failed');
             showToast('Upload error: ' + err.message, 'error');
         }
+    }
+
+    async function startBatchUpload() {
+        const chunkSize = parseInt(chunkSizeSelect.value, 10);
+        isPaused = false;
+        isCancelled = false;
+
+        fileInfo.classList.add('hidden');
+        uploadProgress.classList.remove('hidden');
+
+        const totalFiles = selectedFiles.length;
+        let successfulCount = 0;
+
+        for (let i = 0; i < totalFiles; i++) {
+            if (isCancelled) break;
+
+            const file = selectedFiles[i];
+            selectedFile = file;
+            progressFileName.textContent = `[${i + 1}/${totalFiles}] ${file.name}`;
+            setProgressStatus('uploading', `Hashing ${i + 1} of ${totalFiles}...`);
+
+            // Compute hash for current file in batch
+            fileHash = await computeSHA256(file);
+            setProgressStatus('uploading', `Uploading (${i + 1}/${totalFiles})`);
+
+            try {
+                const createResp = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        original_name: file.name,
+                        total_size: file.size,
+                        chunk_size: chunkSize,
+                        expected_sha256: fileHash
+                    })
+                });
+
+                if (!createResp.ok) {
+                    const errData = await createResp.json();
+                    throw new Error(errData.error || 'Failed to create transfer session');
+                }
+
+                const { id, token, total_chunks } = await createResp.json();
+                currentTransfer = { id, token, totalChunks: total_chunks, chunkSize };
+
+                initChunkGrid(total_chunks);
+                updateProgress(0, total_chunks, 0);
+                openProgressStream(id, token);
+
+                await uploadChunks();
+                successfulCount++;
+            } catch (err) {
+                console.error(`Failed uploading ${file.name}:`, err);
+                showToast(`Failed uploading ${file.name}: ${err.message}`, 'error');
+            }
+        }
+
+        if (successfulCount === totalFiles) {
+            showToast(`🎉 All ${totalFiles} batch files uploaded successfully!`, 'success');
+        } else {
+            showToast(`Batch completed: ${successfulCount} of ${totalFiles} uploaded.`, 'info');
+        }
+
+        setTimeout(() => {
+            resetUploadUI();
+            loadTransfers();
+        }, 1500);
     }
 
     async function uploadChunks() {
@@ -638,6 +801,9 @@
             // Absolute download link (works across local LAN)
             const downloadUrl = `${getReachableBaseUrl()}${API_BASE}/${t.id}/download`;
 
+            // Build preview URL
+            const previewUrl = `${getReachableBaseUrl()}${API_BASE}/${t.id}/preview`;
+
             return `
                 <div class="transfer-card">
                     <div class="transfer-card-left">
@@ -659,6 +825,9 @@
                     </div>
                     <div class="transfer-card-actions">
                         ${isCompleted ? `
+                            <button class="btn btn-sm btn-preview-action" onclick="openPreviewModal('${escapeHtml(t.original_name)}', '${previewUrl}', '${downloadUrl}', '${formatBytes(t.total_size)}')" title="Preview file in browser">
+                                👁️ Preview
+                            </button>
                             <a href="${downloadUrl}" class="btn btn-sm btn-download-action" download="${escapeHtml(t.original_name)}">
                                 ⬇ Download
                             </a>
@@ -714,8 +883,94 @@
     });
 
     // ============================================================
+    // In-Browser File Preview Modal
+    // ============================================================
+
+    window.openPreviewModal = function(name, previewUrl, downloadUrl, sizeStr) {
+        if (!previewModal) return;
+        previewModalFileName.textContent = name;
+        previewModalMeta.textContent = sizeStr;
+        previewDownloadBtn.href = downloadUrl;
+        previewDownloadBtn.setAttribute('download', name);
+
+        const ext = name.toLowerCase().split('.').pop();
+        previewContent.innerHTML = '';
+
+        const imageExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'];
+        const videoExts = ['mp4', 'webm', 'ogg', 'mov'];
+        const audioExts = ['mp3', 'wav', 'flac', 'aac'];
+        const textExts = ['txt', 'log', 'json', 'xml', 'csv', 'html', 'css', 'js', 'go', 'py', 'md', 'c', 'cpp', 'java', 'sh', 'yaml', 'yml', 'toml'];
+
+        if (imageExts.includes(ext)) {
+            const img = document.createElement('img');
+            img.src = previewUrl;
+            img.alt = name;
+            previewContent.appendChild(img);
+        } else if (videoExts.includes(ext)) {
+            const video = document.createElement('video');
+            video.src = previewUrl;
+            video.controls = true;
+            video.autoplay = false;
+            previewContent.appendChild(video);
+        } else if (audioExts.includes(ext)) {
+            const audio = document.createElement('audio');
+            audio.src = previewUrl;
+            audio.controls = true;
+            previewContent.appendChild(audio);
+        } else if (ext === 'pdf') {
+            const iframe = document.createElement('iframe');
+            iframe.src = previewUrl;
+            iframe.title = name;
+            previewContent.appendChild(iframe);
+        } else if (textExts.includes(ext)) {
+            const pre = document.createElement('pre');
+            pre.textContent = 'Loading file contents...';
+            previewContent.appendChild(pre);
+
+            fetch(previewUrl)
+                .then(r => r.text())
+                .then(text => {
+                    if (text.length > 50000) {
+                        pre.textContent = text.slice(0, 50000) + '\n\n... [Content truncated for preview]';
+                    } else {
+                        pre.textContent = text;
+                    }
+                })
+                .catch(() => {
+                    pre.textContent = 'Failed to load text preview.';
+                });
+        } else {
+            previewContent.innerHTML = `
+                <div class="preview-unsupported">
+                    <div class="preview-icon">📦</div>
+                    <h4>Preview not available for this file type</h4>
+                    <p>Click the download button above to save and open <strong>${escapeHtml(name)}</strong> locally.</p>
+                </div>
+            `;
+        }
+
+        previewModal.classList.remove('hidden');
+    };
+
+    if (closePreviewModalBtn) {
+        closePreviewModalBtn.addEventListener('click', () => {
+            previewModal.classList.add('hidden');
+            previewContent.innerHTML = '';
+        });
+    }
+
+    // ============================================================
     // Connect Device / LAN Share Modal
     // ============================================================
+
+    if (downloadZipBtn) {
+        downloadZipBtn.addEventListener('click', () => {
+            const baseUrl = getReachableBaseUrl();
+            const zipUrl = `${baseUrl}${API_BASE}/batch/zip`;
+            showToast('Preparing ZIP package download...', 'info');
+            window.location.href = zipUrl;
+        });
+    }
 
     lanShareBtn.addEventListener('click', () => {
         const lanUrl = getReachableBaseUrl();
@@ -735,6 +990,10 @@
     window.addEventListener('click', (e) => {
         if (e.target === lanModal) lanModal.classList.add('hidden');
         if (e.target === fileShareModal) fileShareModal.classList.add('hidden');
+        if (e.target === previewModal) {
+            previewModal.classList.add('hidden');
+            previewContent.innerHTML = '';
+        }
     });
 
     // ============================================================

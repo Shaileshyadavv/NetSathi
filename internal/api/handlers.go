@@ -1,12 +1,15 @@
 package api
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -139,6 +142,14 @@ func (h *Handler) HandleTransfers(w http.ResponseWriter, r *http.Request) {
 	// GET /api/transfers/{id}/download
 	case len(segments) == 2 && segments[1] == "download":
 		h.handleDownloadFile(w, r, segments[0])
+
+	// GET /api/transfers/{id}/preview
+	case len(segments) == 2 && segments[1] == "preview":
+		h.handlePreviewFile(w, r, segments[0])
+
+	// GET or POST /api/transfers/batch/zip
+	case len(segments) == 2 && segments[0] == "batch" && segments[1] == "zip":
+		h.handleDownloadBatchZip(w, r)
 
 	// PUT /api/transfers/{id}/chunks/{index}
 	case len(segments) == 3 && segments[1] == "chunks":
@@ -307,6 +318,168 @@ func (h *Handler) handleDownloadFile(w http.ResponseWriter, r *http.Request, id 
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, originalName))
 	w.Header().Set("Content-Type", "application/octet-stream")
 	http.ServeFile(w, r, filePath)
+}
+
+// mimeFromExtension returns an appropriate MIME type for inline browser preview.
+func mimeFromExtension(name string) string {
+	ext := strings.ToLower(name)
+	if i := strings.LastIndex(ext, "."); i >= 0 {
+		ext = ext[i:]
+	}
+	mimes := map[string]string{
+		".pdf":  "application/pdf",
+		".png":  "image/png",
+		".jpg":  "image/jpeg",
+		".jpeg": "image/jpeg",
+		".gif":  "image/gif",
+		".webp": "image/webp",
+		".svg":  "image/svg+xml",
+		".bmp":  "image/bmp",
+		".mp4":  "video/mp4",
+		".webm": "video/webm",
+		".ogg":  "video/ogg",
+		".mov":  "video/quicktime",
+		".mp3":  "audio/mpeg",
+		".wav":  "audio/wav",
+		".flac": "audio/flac",
+		".aac":  "audio/aac",
+		".txt":  "text/plain; charset=utf-8",
+		".log":  "text/plain; charset=utf-8",
+		".json": "application/json",
+		".xml":  "text/xml; charset=utf-8",
+		".csv":  "text/csv; charset=utf-8",
+		".html": "text/html; charset=utf-8",
+		".css":  "text/css; charset=utf-8",
+		".js":   "text/javascript; charset=utf-8",
+		".go":   "text/plain; charset=utf-8",
+		".py":   "text/plain; charset=utf-8",
+		".md":   "text/plain; charset=utf-8",
+		".c":    "text/plain; charset=utf-8",
+		".cpp":  "text/plain; charset=utf-8",
+		".java": "text/plain; charset=utf-8",
+		".sh":   "text/plain; charset=utf-8",
+		".yaml": "text/plain; charset=utf-8",
+		".yml":  "text/plain; charset=utf-8",
+		".toml": "text/plain; charset=utf-8",
+	}
+	if mime, ok := mimes[ext]; ok {
+		return mime
+	}
+	return ""
+}
+
+// GET /api/transfers/{id}/preview — serves the file inline for in-browser preview.
+func (h *Handler) handlePreviewFile(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	filePath, originalName, err := h.mgr.GetCompletedFilePath(id)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "transfer not found")
+			return
+		}
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	mime := mimeFromExtension(originalName)
+	if mime == "" {
+		// Unsupported preview type — fall back to download
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, originalName))
+		w.Header().Set("Content-Type", "application/octet-stream")
+	} else {
+		w.Header().Set("Content-Disposition", fmt.Sprintf(`inline; filename="%s"`, originalName))
+		w.Header().Set("Content-Type", mime)
+	}
+
+	http.ServeFile(w, r, filePath)
+}
+
+// GET or POST /api/transfers/batch/zip — streams multiple completed files as a single ZIP archive.
+func (h *Handler) handleDownloadBatchZip(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	var ids []string
+	if rawIDs := r.URL.Query().Get("ids"); rawIDs != "" {
+		for _, id := range strings.Split(rawIDs, ",") {
+			id = strings.TrimSpace(id)
+			if id != "" {
+				ids = append(ids, id)
+			}
+		}
+	} else if r.Body != nil {
+		var req struct {
+			IDs []string `json:"ids"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1024*1024)).Decode(&req); err == nil {
+			ids = req.IDs
+		}
+	}
+
+	// If no specific IDs provided, zip all completed transfers
+	if len(ids) == 0 {
+		transfers, err := h.mgr.ListTransfers(100)
+		if err == nil {
+			for _, t := range transfers {
+				if t.Status == storage.StatusCompleted {
+					ids = append(ids, t.ID)
+				}
+			}
+		}
+	}
+
+	if len(ids) == 0 {
+		writeError(w, http.StatusBadRequest, "no completed files available to zip")
+		return
+	}
+
+	// Stream ZIP file directly to HTTP client
+	zipFilename := fmt.Sprintf("NetSathi_Batch_%s.zip", time.Now().Format("20060102_150405"))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipFilename))
+	w.Header().Set("Content-Type", "application/zip")
+
+	zipWriter := zip.NewWriter(w)
+	defer zipWriter.Close()
+
+	addedFiles := make(map[string]int)
+
+	for _, id := range ids {
+		filePath, origName, err := h.mgr.GetCompletedFilePath(id)
+		if err != nil {
+			continue // skip missing or incomplete files
+		}
+
+		f, err := os.Open(filePath)
+		if err != nil {
+			continue
+		}
+
+		// Avoid name collisions inside zip
+		entryName := origName
+		if count, exists := addedFiles[origName]; exists {
+			addedFiles[origName] = count + 1
+			ext := filepath.Ext(origName)
+			base := strings.TrimSuffix(origName, ext)
+			entryName = fmt.Sprintf("%s (%d)%s", base, count+1, ext)
+		} else {
+			addedFiles[origName] = 1
+		}
+
+		zf, err := zipWriter.Create(entryName)
+		if err != nil {
+			f.Close()
+			continue
+		}
+
+		io.Copy(zf, f)
+		f.Close()
+	}
 }
 
 // GET /api/transfers/{id}/progress/stream — Server-Sent Events real-time progress feed.

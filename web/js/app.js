@@ -837,7 +837,14 @@
                             <button class="btn btn-sm btn-qr-action" onclick="openFileShareModal('${escapeHtml(t.original_name)}', '${downloadUrl}')" title="Scan QR Code to download on mobile">
                                 📱 QR Code
                             </button>
-                        ` : ''}
+                            <button class="btn btn-sm btn-delete-action" onclick="deleteTransfer('${t.id}', '${escapeHtml(t.original_name)}')" title="Delete this file from server">
+                                🗑️ Delete
+                            </button>
+                        ` : `
+                            <button class="btn btn-sm btn-delete-action" onclick="deleteTransfer('${t.id}', '${escapeHtml(t.original_name)}')" title="Cancel / Delete incomplete transfer">
+                                🗑️ Delete
+                            </button>
+                        `}
                     </div>
                 </div>
             `;
@@ -861,6 +868,28 @@
         navigator.clipboard.writeText(reachableUrl).then(() => {
             showToast('Download link copied! Paste anywhere on your Wi-Fi.', 'success');
         });
+    };
+
+    window.deleteTransfer = async function(id, name) {
+        if (!confirm(`Are you sure you want to delete "${name}" from the server?`)) {
+            return;
+        }
+
+        try {
+            const resp = await fetch(`${API_BASE}/${id}`, {
+                method: 'DELETE'
+            });
+
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || 'Failed to delete transfer');
+            }
+
+            showToast(`Deleted "${name}"`, 'info');
+            loadTransfers();
+        } catch (err) {
+            showToast('Delete error: ' + err.message, 'error');
+        }
     };
 
     window.openFileShareModal = function(name, url) {

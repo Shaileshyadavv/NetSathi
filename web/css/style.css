@@ -1440,6 +1440,19 @@ details[open] .accordion-arrow {
     border-color: rgba(168, 85, 247, 0.5);
 }
 
+/* Delete button in transfer cards */
+.btn-delete-action {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.btn-delete-action:hover {
+    background: rgba(239, 68, 68, 0.28);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #fca5a5;
+}
+
 /* ===== UTILITIES ===== */
 .hidden {
     display: none !important;

@@ -127,9 +127,13 @@ func (h *Handler) HandleTransfers(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		}
 
-	// GET /api/transfers/{id}
+	// GET /api/transfers/{id} or DELETE /api/transfers/{id}
 	case len(segments) == 1:
-		h.handleGetTransfer(w, r, segments[0])
+		if r.Method == http.MethodDelete {
+			h.handleDeleteTransfer(w, r, segments[0])
+		} else {
+			h.handleGetTransfer(w, r, segments[0])
+		}
 
 	// GET /api/transfers/{id}/missing
 	case len(segments) == 2 && segments[1] == "missing":
@@ -182,6 +186,28 @@ func (h *Handler) handleGetTransfer(w http.ResponseWriter, r *http.Request, id s
 	}
 
 	writeJSON(w, http.StatusOK, progress)
+}
+
+// DELETE /api/transfers/{id}
+func (h *Handler) handleDeleteTransfer(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodDelete {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	if err := h.mgr.DeleteTransfer(id); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "transfer not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"message": "transfer deleted successfully",
+		"id":      id,
+	})
 }
 
 // GET /api/transfers/{id}/missing

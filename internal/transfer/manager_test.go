@@ -655,3 +655,38 @@ func TestCleanupExpired_PreservesCompletedTransfers(t *testing.T) {
 		t.Errorf("expected 0 completed transfers cleaned, got %d", n)
 	}
 }
+
+func TestDeleteTransfer(t *testing.T) {
+	mgr := newTestManager(t)
+	data, _ := makeTestData(1024)
+	resp := createTransferHelper(t, mgr, "to_delete.bin", data, 1024)
+
+	// Save chunk and complete
+	mgr.SaveChunk(resp.ID, resp.Token, 0, "", bytes.NewReader(data))
+	mgr.CompleteTransfer(resp.ID, resp.Token)
+
+	// Verify file exists
+	path, _, err := mgr.GetCompletedFilePath(resp.ID)
+	if err != nil {
+		t.Fatalf("GetCompletedFilePath failed: %v", err)
+	}
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Fatalf("expected completed file to exist")
+	}
+
+	// Delete transfer
+	if err := mgr.DeleteTransfer(resp.ID); err != nil {
+		t.Fatalf("DeleteTransfer failed: %v", err)
+	}
+
+	// Verify file is removed from disk
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("expected completed file to be deleted from disk")
+	}
+
+	// Verify cannot get transfer
+	_, err = mgr.GetTransferProgress(resp.ID)
+	if err == nil {
+		t.Errorf("expected error getting deleted transfer")
+	}
+}

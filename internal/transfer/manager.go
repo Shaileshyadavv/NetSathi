@@ -399,6 +399,32 @@ func (m *Manager) VerifyToken(transferID, token string) error {
 	return nil
 }
 
+// DeleteTransfer deletes a transfer, its chunks directory, and any completed file on disk.
+func (m *Manager) DeleteTransfer(id string) error {
+	// 1. Check if transfer exists
+	t, err := m.db.GetTransfer(id)
+	if err != nil {
+		return err
+	}
+
+	// 2. Remove chunk directory if any
+	m.cleanupChunks(id)
+
+	// 3. Remove completed file if completed
+	if t.StoredPath != "" {
+		_ = os.Remove(t.StoredPath)
+	}
+	_ = os.Remove(filepath.Join(m.completedDir, t.ID+"_"+t.OriginalName))
+
+	// 4. Delete record from database (cascades to chunks table)
+	if err := m.db.DeleteTransfer(id); err != nil {
+		return fmt.Errorf("failed to delete transfer from database: %w", err)
+	}
+
+	log.Printf("[INFO] Deleted transfer: id=%s name=%s", t.ID, t.OriginalName)
+	return nil
+}
+
 // CleanupExpired purges incomplete/abandoned transfers older than maxAge (Page 3 optional extension).
 func (m *Manager) CleanupExpired(maxAge time.Duration) (int, error) {
 	cutoff := time.Now().UTC().Add(-maxAge)

@@ -653,4 +653,44 @@ func TestBatchZipEndpoint(t *testing.T) {
 	}
 }
 
+func TestDeleteTransferEndpoint(t *testing.T) {
+	router := setupTestRouter(t)
+
+	// 1. Delete non-existent transfer -> 404
+	rr := doRequest(router, "DELETE", "/api/transfers/non-existent-id", nil, nil)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rr.Code)
+	}
+
+	// 2. Create and complete a transfer
+	c := []byte("Delete test file content")
+	h := sha256.Sum256(c)
+	body, _ := json.Marshal(map[string]any{
+		"original_name":   "delete_me.txt",
+		"total_size":      len(c),
+		"chunk_size":      len(c),
+		"expected_sha256": hex.EncodeToString(h[:]),
+	})
+	rr = doRequest(router, "POST", "/api/transfers", bytes.NewReader(body), map[string]string{"Content-Type": "application/json"})
+	var r map[string]any
+	json.NewDecoder(rr.Body).Decode(&r)
+	id := r["id"].(string)
+	tok := r["token"].(string)
+
+	doRequest(router, "PUT", "/api/transfers/"+id+"/chunks/0", bytes.NewReader(c), map[string]string{"Authorization": "Bearer " + tok})
+	doRequest(router, "POST", "/api/transfers/"+id+"/complete", nil, map[string]string{"Authorization": "Bearer " + tok})
+
+	// 3. Delete the transfer
+	rr = doRequest(router, "DELETE", "/api/transfers/"+id, nil, nil)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 on DELETE, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	// 4. Verify GET returns 404
+	rr = doRequest(router, "GET", "/api/transfers/"+id, nil, nil)
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 after deletion, got %d", rr.Code)
+	}
+}
+
 

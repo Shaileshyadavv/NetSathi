@@ -10,13 +10,7 @@
 2. [Key Capabilities & Architecture](#key-capabilities--architecture)
 3. [Technology Stack](#technology-stack)
 4. [Prerequisites & Getting Started](#prerequisites--getting-started)
-5. [Interactive Web Dashboard](#interactive-web-dashboard)
-6. [Dedicated CLI Client (`netsathi-cli`)](#dedicated-cli-client-netsathi-cli)
-7. [Two-Device LAN Demonstration](#two-device-lan-demonstration)
-8. [REST API Documentation](#rest-api-documentation)
-9. [Testing & Evaluation](#testing--evaluation)
-10. [Docker Deployment](#docker-deployment)
-11. [Viva & Technical Interview Guide](#viva--technical-interview-guide)
+
 
 ---
 

@@ -121,22 +121,8 @@ Standard HTTP file uploads fail completely when interrupted by transient network
 
 ---
 
-## 🖥️ Interactive Web Dashboard
 
-NetSathi includes a self-hosted single-page dashboard served directly by the Go application:
-- **Drag-and-Drop or File Picker:** Select any local file of any size.
-- **Client-Side SHA-256 Hashing:** Automatically computes the file fingerprint in the browser before upload begins.
-- **Configurable Chunk Sizes:** Select 1 MB, 2 MB, 5 MB, or 10 MB chunks.
-- **Parallel Chunk Streams:** Select 1x, 2x, 3x, or 4x concurrent worker streams to saturate LAN throughput.
-- **Pause & Resume Controls:** Click **Pause** at any time to simulate a network interruption, then click **Resume** to continue uploading without repeating already-saved chunks.
-- **Transfer History & Direct Download:** View all recent transfers, verification statuses, and download finished files with one click.
-- **Mobile QR Code Pairing:** Click **Connect Phone / LAN** or click **📱 QR Code** on any file card to download directly to your mobile phone over Wi-Fi.
 
----
-
-## 💻 Dedicated CLI Client (`netsathi-cli`)
-
-NetSathi includes a dedicated Go command-line tool for headless environments, server-to-server transfers, and automated shell scripting.
 
 ### Build the CLI
 ```bash
@@ -272,95 +258,16 @@ All endpoints return JSON responses and support CORS.
   }
   ```
 
-### 5. Finalize & Verify Transfer
-`POST /api/transfers/{id}/complete`
-- **Headers:** `Authorization: Bearer <token>`
-- **Response (`200 OK`):**
-  ```json
-  {
-    "message": "transfer completed and verified",
-    "progress": {
-      "transfer": {
-        "id": "e3794f09-b68b-4a57-b08e-59c40788730b",
-        "original_name": "backup.zip",
-        "total_size": 10485760,
-        "chunk_size": 2097152,
-        "total_chunks": 5,
-        "expected_sha256": "3a7bd79b2d54...",
-        "actual_sha256": "3a7bd79b2d54...",
-        "status": "Completed"
-      },
-      "received_chunks": 5,
-      "received_bytes": 10485760,
-      "percentage": 100
-    }
-  }
-  ```
 
-### 6. List Transfers
-`GET /api/transfers?limit=20`
 
-### 7. Download Completed File
-`GET /api/transfers/{id}/download`
 
----
 
-## 🧪 Testing & Evaluation
 
-NetSathi includes a test suite covering API contracts, security checks, and database consistency.
 
-Run all tests:
-```bash
-go test -v ./...
-```
 
-### Test Coverage Highlights
-- ✅ **Storage Lifecycle:** Creation, retrieval, chunk state transition, and reconciliation.
-- ✅ **Filename Sanitization:** Path traversal attacks (`../../`, `\..\Windows\System32\cmd.exe`, control characters) stripped safely.
-- ✅ **Secure Token Generation:** Cryptographically random 256-bit tokens.
-- ✅ **Streaming SHA-256:** Bit-exact verification and corrupted-chunk rejection.
-- ✅ **Transfer API Lifecycle:** End-to-end simulation using `httptest` (create $\rightarrow$ chunk upload $\rightarrow$ missing check $\rightarrow$ complete $\rightarrow$ download).
-- ✅ **Authentication Enforcement:** Rejection of unauthorized (`401`) and invalid token (`403`) requests.
-- ✅ **Idempotency:** Re-transmitting existing chunks does not corrupt data or produce duplicate records.
 
----
 
-## 🐳 Docker Deployment
 
-To build and run using Docker:
-
-```bash
-# Build Docker image
-docker build -t netsathi:latest .
-
-# Run container mapping host port 8080 and mounting persistent data volume
-docker run -d \
-  -p 8080:8080 \
-  -v $(pwd)/netsathi-data:/app/data \
-  --name netsathi-app \
-  netsathi:latest
-```
-
-Access the dashboard at `http://localhost:8080`.
-
----
-
-## 🎓 Viva & Technical Interview Guide
-
-Here are concise, high-impact answers to anticipated evaluation and viva questions:
-
-| Question | Key Points / Answer |
-|---|---|
-| **Why choose Go for this project?** | Go provides compiled execution speed, native concurrency primitives (`goroutines`, channels, `sync.RWMutex`), low memory footprint, and a standard library with production-grade networking (`net/http`) and cryptography (`crypto/sha256`). |
-| **Why chunk files instead of a single stream?** | Network connections can fail midway through large transfers. Chunking allows transfers to be split into manageable units so that only missing chunks need to be retransmitted, saving bandwidth and time. |
-| **How does resumability work in NetSathi?** | Each transfer is tracked in SQLite. When an upload is resumed, the client queries `GET /api/transfers/{id}/missing`. The server checks received chunk records in the database, returns an array of unuploaded chunk indexes, and the client uploads only those parts. |
-| **What role does SHA-256 play? Does it encrypt?** | No, SHA-256 does **not** encrypt; it is a one-way cryptographic hash function. It ensures *data integrity* by generating a 256-bit digital fingerprint of the file. If even a single bit is altered or corrupted during transfer, the hash mismatch is detected and the file is rejected. |
-| **Why SQLite instead of PostgreSQL or MySQL?** | SQLite is self-hosted, serverless, zero-configuration, and stores data in a single local file. Configured with Write-Ahead Logging (`WAL`), it supports concurrent readers without blocking, making it ideal for an embedded network appliance. |
-| **How does NetSathi recover state after a server crash?** | On server startup, `db.ReconcileStartupState()` queries all active transfers and reconciles chunk records against actual chunk files on disk. If a chunk file is missing or size-corrupted, its record is purged so the resume engine can re-fetch it. |
-| **How are path traversal and malicious filenames prevented?** | Chunks and assembled files are stored on disk using server-generated UUIDs, not user-provided filenames. Client filenames are sanitized by stripping directory separators (`/`, `\`), control characters, and null bytes (`tokens.SanitizeFilename`). |
-| **How is chunk write safety achieved?** | NetSathi writes chunks to a temporary `.part.tmp` file and performs an atomic rename to `.part` only after the full chunk write succeeds. Database records are committed only after the chunk file is verified on disk. |
-
----
 
 ## 📄 License
 This project is developed as an academic capstone and backend systems demonstration. Distributed under the MIT License.
